@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Word Chain – IT (PWA)</title>
+  <meta name="theme-color" content="#151933">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icons/icon-192.png">
+  <style>
+    :root { --bg:#0f1220; --card:#151933; --muted:#8b90a6; --primary:#6ea8fe; --good:#45d483; --bad:#ff6b6b; --warning:#f7b267; --text:#e8ecff; --shadow:0 8px 30px rgba(0,0,0,.35); --radius:16px; }
+    html,body{height:100%}
+    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:radial-gradient(1200px 800px at 80% -10%,#1c2248 0%,var(--bg) 45%);color:var(--text);line-height:1.35}
+    .app{max-width:1040px;margin:24px auto;padding:16px}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    header h1{font-size:20px;margin:0;letter-spacing:.3px}
+    header .badge{font-size:12px;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:1fr;gap:12px}
+    @media(min-width:1024px){.grid{grid-template-columns:1.3fr .7fr}}
+    .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px}
+    .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}
+    input[type="text"],select{width:100%;background:#0f1430;border:1px solid #2a2f54;color:var(--text);border-radius:12px;padding:10px 12px;outline:none}
+    input::placeholder{color:#667}
+    button{background:#24305a;border:1px solid #334074;color:var(--text);border-radius:12px;padding:10px 14px;cursor:pointer}
+    button.primary{background:var(--primary);border-color:#5a8be0;color:#0b1026;font-weight:700}
+    button.ghost{background:transparent;border-color:#2a2f54}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .status{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+    .stat{background:#0f1430;border:1px solid #2a2f54;border-radius:12px;padding:10px 12px;text-align:center}
+    .stat .k{font-size:12px;color:var(--muted)}
+    .stat .v{font-size:18px;font-weight:700}
+    .chain{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:8px}
+    .chip{background:#0f1430;border:1px solid #2a2f54;color:var(--text);padding:8px 12px;border-radius:999px}
+    .chip.start{border-color:var(--good)}
+    .chip.target{border-color:var(--warning)}
+    .msg{margin-top:10px;min-height:22px;color:var(--muted)}
+    .msg.ok{color:var(--good)}
+    .msg.err{color:var(--bad)}
+    .list{max-height:220px;overflow:auto;border:1px solid #2a2f54;border-radius:12px;padding:8px;background:#0f1430}
+    .list ol{margin:0;padding-left:22px}
+    .progress{height:8px;background:#0f1430;border:1px solid #2a2f54;border-radius:999px;overflow:hidden}
+    .progress>div{height:100%;background:linear-gradient(90deg,var(--primary),#9ad0ff);width:0}
+    footer{margin-top:18px;color:var(--muted);font-size:12px}
+    .hint{color:var(--muted);font-size:12px}
+    .pill{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+    .pill b{color:var(--text)}
+    .section-title{font-size:13px;color:var(--muted);margin:6px 0 2px}
+    .kbd{background:#0f1430;border:1px solid #2a2f54;border-radius:6px;padding:2px 6px;font-size:12px}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Word Chain – Prototipo Web (Offline IT)</h1>
+      <div class="badge">BFS • Livelli • Salvataggi • PWA</div>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <div class="row" style="gap:16px;align-items:flex-end">
+          <div style="flex:1;min-width:160px">
+            <label>Parola iniziale</label>
+            <input id="startWord" type="text" value="calore" />
+          </div>
+          <div style="flex:1;min-width:160px">
+            <label>Parola finale</label>
+            <input id="targetWord" type="text" value="sole" />
+          </div>
+          <div style="min-width:170px">
+            <label>Difficoltà</label>
+            <select id="difficulty">
+              <option value="easy">Facile (10 passi · 120s)</option>
+              <option value="medium" selected>Media (8 passi · 90s)</option>
+              <option value="hard">Difficile (6 passi · 60s)</option>
+            </select>
+          </div>
+          <div style="min-width:240px">
+            <label>Validazione</label>
+            <select id="validation">
+              <option value="offline_it" selected>Offline IT (dizionario)</option>
+              <option value="permissive">Permissiva (solo anti-duplicati)</option>
+            </select>
+            <div class="pill" style="margin-top:6px">
+              <input id="strictAssoc" type="checkbox" />
+              <span>Richiedi <b>associazioni note</b> (usa BFS)</span>
+            </div>
+          </div>
+          <div class="row" style="gap:8px">
+            <button id="startBtn" class="primary">Avvia</button>
+            <button id="hintBtn" class="ghost" disabled>Suggest</button>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:8px;align-items:center">
+          <input type="file" id="dictFile" accept=".txt,.json" style="display:none" />
+          <button id="loadDictBtn" class="ghost">Carica dizionario…</button>
+          <button id="useSavedBtn" class="ghost" disabled>Usa dizionario salvato</button>
+          <button id="loadBundledBtn" class="ghost">Pack integrato</button>
+          <div class="pill">Dizionario: <b id="dictSize">0</b> parole • Associazioni: <b id="assocSize">0</b></div>
+        </div>
+
+        <div style="height:10px"></div>
+        <div class="status">
+          <div class="stat"><div class="k">Tempo</div><div class="v" id="time">—</div></div>
+          <div class="stat"><div class="k">Passi</div><div class="v"><span id="steps">0</span>/<span id="maxSteps">0</span></div></div>
+          <div class="stat"><div class="k">Punteggio</div><div class="v" id="score">0</div></div>
+          <div class="stat"><div class="k">Best</div><div class="v" id="best">0</div></div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="progress"><div id="timeBar"></div></div>
+
+        <div style="height:14px"></div>
+        <div class="row">
+          <div class="chip start" id="chipStart">calore</div>
+          <div class="chip target" id="chipTarget">sole</div>
+          <div class="pill" id="bfsInfo" style="margin-left:auto"></div>
+        </div>
+
+        <div style="height:12px"></div>
+        <div class="row">
+          <input id="wordInput" type="text" placeholder="Inserisci parola" style="flex:1" disabled />
+          <button id="submitBtn" class="primary" disabled>OK</button>
+          <button id="resetBtn" class="ghost">Nuova partita</button>
+        </div>
+
+        <div class="msg" id="msg"></div>
+
+        <div style="height:12px"></div>
+        <div class="list">
+          <label>Catena</label>
+          <ol id="chain"></ol>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0">Livelli predefiniti</h3>
+        <div class="row">
+          <select id="levelSelect" style="flex:1;min-width:240px"></select>
+          <button id="loadLevelBtn" class="ghost">Carica livello</button>
+          <button id="randomLevelBtn" class="ghost">Casuale</button>
+        </div>
+        <div class="section-title">Note PWA</div>
+        <ul>
+          <li>Questa pagina è installabile (HTTPS + manifest + service worker).</li>
+          <li>Il tasto <b>Pack integrato</b> carica <code>italiano_full.json</code> dal sito e lo salva localmente.</li>
+        </ul>
+        <div class="section-title">Stato</div>
+        <div class="pill" id="pwaStatus">Inizializzazione…</div>
+      </div>
+    </div>
+
+    <footer>Prototipo client-side. Nessun traffico verso servizi esterni. Salvataggi in <code>localStorage</code>.</footer>
+  </div>
+
+  <script>
+    // Built-in tiny dict (fallback)
+    const BUILTIN_IT = {
+      words:['calore','sole','fuoco','caldo','estate','luce','raggi','stella','giorno','temperatura','bollore','fiamma','energia','termico','acqua','mare','fiume','lago','pioggia','neve','ghiaccio','sorgente','onda','spiaggia','sabbia','isola','barca','nave','porto','terra','suolo','sasso','montagna','collina','valle','bosco','albero','foglia','ramo','radice','fiore','rosa','girasole','città','strada','casa','porta','finestra','tetto','muro','letto','sedia','tavolo','camera','bagno','cucina','sala','cibo','pane','forno','caffè','zucchero','sale','olio','vino','birra','carne','pesce','frutta','verdura','mela','pera','uva','limone','arancia','freddo','notte','buio','ombra','lampada','scuola','lavoro','ufficio','fabbrica','computer','telefono','libro','penna','carta'],
+      assoc:{'calore':['fuoco','caldo','sole','estate','temperatura','bollore','fiamma','energia'],'sole':['luce','stella','giorno','estate','raggi','caldo','mare'],'acqua':['mare','fiume','pioggia','lago','sorgente','ghiaccio','neve','onda'],'fuoco':['fiamma','calore','forno','camino'],'mare':['onda','spiaggia','sabbia','isola','barca','porto','acqua'],'albero':['foglia','ramo','radice','bosco','fiore','girasole'],'casa':['porta','finestra','tetto','camera','bagno','cucina','sala','tavolo','letto'],'cibo':['pane','forno','olio','sale','zucchero','vino','carne','pesce','frutta','verdura']},
+      freq:{'calore':0.35,'sole':0.85,'fuoco':0.55,'caldo':0.7,'estate':0.7,'luce':0.8,'stella':0.6,'giorno':0.9,'temperatura':0.45,'bollore':0.15,'fiamma':0.4,'energia':0.7,'acqua':0.9,'mare':0.75,'fiume':0.6,'lago':0.5,'pioggia':0.6,'neve':0.55,'ghiaccio':0.5,'sorgente':0.35,'onda':0.4,'spiaggia':0.5,'sabbia':0.45,'isola':0.5,'barca':0.45,'nave':0.45,'porto':0.6,'terra':0.85,'montagna':0.6,'bosco':0.5,'albero':0.7,'foglia':0.45,'fiore':0.6,'girasole':0.35,'città':0.9,'strada':0.85,'casa':0.95,'porta':0.9,'finestra':0.85,'tetto':0.75,'muro':0.75,'letto':0.85,'sedia':0.8,'tavolo':0.9,'camera':0.8,'bagno':0.8,'cucina':0.85,'cibo':0.8,'pane':0.85,'forno':0.7,'caffè':0.8,'zucchero':0.7,'sale':0.8,'olio':0.75,'vino':0.75,'birra':0.6,'carne':0.7,'pesce':0.7,'frutta':0.7,'verdura':0.65,'mela':0.55,'pera':0.5,'uva':0.55,'limone':0.5,'arancia':0.5,'freddo':0.75,'notte':0.85,'buio':0.6,'ombra':0.6,'lampada':0.55,'scuola':0.8,'lavoro':0.9,'ufficio':0.75,'fabbrica':0.55,'computer':0.8,'telefono':0.8,'libro':0.85,'penna':0.7,'carta':0.8}
+    };
+
+    // Levels
+    const LEVELS = [
+      {name:'Calore → Sole', start:'calore', target:'sole', diff:'medium'},
+      {name:'Mare → Spiaggia', start:'mare', target:'spiaggia', diff:'easy'},
+      {name:'Casa → Tavolo', start:'casa', target:'tavolo', diff:'easy'},
+      {name:'Notte → Alba', start:'notte', target:'alba', diff:'medium'},
+      {name:'Acqua → Ghiaccio', start:'acqua', target:'ghiaccio', diff:'easy'},
+      {name:'Fuoco → Camino', start:'fuoco', target:'camino', diff:'medium'},
+      {name:'Freddo → Estate', start:'freddo', target:'estate', diff:'hard'},
+      {name:'Pane → Forno', start:'pane', target:'forno', diff:'easy'},
+      {name:'Bosco → Fiore', start:'bosco', target:'fiore', diff:'medium'},
+      {name:'Luce → Ombra', start:'luce', target:'ombra', diff:'hard'},
+      {name:'Telefono → Router', start:'telefono', target:'router', diff:'medium'},
+      {name:'Città → Ponte', start:'città', target:'ponte', diff:'medium'},
+      {name:'Mano → Guanto', start:'mano', target:'guanto', diff:'easy'},
+      {name:'Stella → Giorno', start:'stella', target:'giorno', diff:'hard'}
+    ];
+
+    // Active dict structures
+    let IT_DICT = new Set(BUILTIN_IT.words.map(w=>w.toLowerCase()));
+    let IT_ASSOC = new Map(Object.entries(BUILTIN_IT.assoc||{}).map(([k,v])=>[k.toLowerCase(), new Set(v.map(x=>x.toLowerCase()))]));
+    let IT_FREQ = new Map(Object.entries(BUILTIN_IT.freq||{}).map(([k,v])=>[k.toLowerCase(), Number(v)]));
+
+    // Config & state
+    const DIFFICULTY = { easy:{maxSteps:10,time:120,mult:1.0}, medium:{maxSteps:8,time:90,mult:1.5}, hard:{maxSteps:6,time:60,mult:2.0} };
+    const STATE = { started:false, startWord:'calore', targetWord:'sole', difficulty:'medium', validation:'offline_it', strict:false, maxSteps:8, timeLeft:90, timer:null, chain:[], used:new Set(), score:0, best:0, bfsPath:null };
+
+    // DOM
+    const $ = s => document.querySelector(s);
+    const el = { startWord:$('#startWord'), targetWord:$('#targetWord'), difficulty:$('#difficulty'), validation:$('#validation'), strictAssoc:$('#strictAssoc'), startBtn:$('#startBtn'), hintBtn:$('#hintBtn'), resetBtn:$('#resetBtn'), input:$('#wordInput'), submit:$('#submitBtn'), steps:$('#steps'), maxSteps:$('#maxSteps'), score:$('#score'), best:$('#best'), time:$('#time'), timeBar:$('#timeBar'), msg:$('#msg'), chipStart:$('#chipStart'), chipTarget:$('#chipTarget'), chain:$('#chain'), loadDictBtn:$('#loadDictBtn'), useSavedBtn:$('#useSavedBtn'), loadBundledBtn:$('#loadBundledBtn'), dictFile:$('#dictFile'), dictSize:$('#dictSize'), assocSize:$('#assocSize'), levelSelect:$('#levelSelect'), loadLevelBtn:$('#loadLevelBtn'), randomLevelBtn:$('#randomLevelBtn'), bfsInfo:$('#bfsInfo'), pwaStatus:$('#pwaStatus') };
+
+    // LocalStorage helpers
+    const LS = {
+      saveSettings(){ try{ localStorage.setItem('wc_settings', JSON.stringify({difficulty:STATE.difficulty, validation:STATE.validation, strict:STATE.strict})); }catch(e){} },
+      loadSettings(){ try{ const s=JSON.parse(localStorage.getItem('wc_settings')||'null'); if(s){ STATE.difficulty=s.difficulty||STATE.difficulty; STATE.validation=s.validation||STATE.validation; STATE.strict=!!s.strict; } }catch(e){} },
+      saveBest(){ try{ localStorage.setItem('wc_best', String(STATE.best)); }catch(e){} },
+      loadBest(){ try{ const b=Number(localStorage.getItem('wc_best')||'0'); STATE.best = Number.isFinite(b)? b : 0; }catch(e){ STATE.best=0; } },
+      saveLastGame(){ try{ localStorage.setItem('wc_last', JSON.stringify({start:STATE.startWord, target:STATE.targetWord})); }catch(e){} },
+      loadLastGame(){ try{ const g=JSON.parse(localStorage.getItem('wc_last')||'null'); if(g){ el.startWord.value=g.start||el.startWord.value; el.targetWord.value=g.target||el.targetWord.value; } }catch(e){} },
+      saveDict(jsonStr, name){ try{ localStorage.setItem('wc_dict', jsonStr); localStorage.setItem('wc_dict_name', name||'custom.json'); el.useSavedBtn.disabled=false; } catch(e){} },
+      hasDict(){ try{ return !!localStorage.getItem('wc_dict'); }catch(e){ return false; } },
+      loadDict(){ try{ return localStorage.getItem('wc_dict'); }catch(e){ return null; } },
+      dictName(){ try{ return localStorage.getItem('wc_dict_name')||'custom.json'; }catch(e){ return 'custom.json'; } }
+    };
+
+    // UI helpers
+    function setMsg(text, kind=''){ el.msg.className='msg '+(kind||''); el.msg.textContent=text||''; }
+    function resetUI(){ el.chain.innerHTML=''; el.steps.textContent='0'; el.score.textContent='0'; el.time.textContent='—'; el.timeBar.style.width='0%'; setMsg(''); el.hintBtn.disabled=true; el.bfsInfo.textContent=''; }
+    function updateHeaderWords(){ el.chipStart.textContent=STATE.startWord; el.chipTarget.textContent=STATE.targetWord; }
+    function updateStatus(){ el.steps.textContent=String(STATE.chain.length); el.maxSteps.textContent=String(STATE.maxSteps); el.score.textContent=String(STATE.score); el.best.textContent=String(STATE.best); el.time.textContent=STATE.timeLeft+'s'; const pct=Math.max(0,Math.min(100,(STATE.timeLeft/DIFFICULTY[STATE.difficulty].time)*100)); el.timeBar.style.width=pct+'%'; }
+    function pushChain(word){ STATE.chain.push(word); STATE.used.add(word.toLowerCase()); const li=document.createElement('li'); li.textContent=word; el.chain.appendChild(li); }
+    function endGame(kind){ STATE.started=false; clearInterval(STATE.timer); el.input.disabled=true; el.submit.disabled=true; el.startBtn.disabled=false; el.hintBtn.disabled=true; if(kind==='win'){ setMsg('✅ Hai raggiunto la parola finale! Punteggio: '+STATE.score,'ok'); if(STATE.score>STATE.best){ STATE.best=STATE.score; LS.saveBest(); updateStatus(); } } else if (kind==='time'){ setMsg('⏱️ Tempo scaduto. Punteggio: '+STATE.score,'err'); } else if (kind==='steps'){ setMsg('🧱 Limite passi raggiunto. Punteggio: '+STATE.score,'err'); } }
+    function startTimer(){ clearInterval(STATE.timer); STATE.timer=setInterval(()=>{ if(!STATE.started) return; STATE.timeLeft-=1; updateStatus(); if(STATE.timeLeft<=0) endGame('time'); },1000); }
+
+    // BFS
+    function neighborsOf(w){ const set=IT_ASSOC.get(w.toLowerCase()); if(!set) return []; return Array.from(set); }
+    function bfs(start, target, maxDepth){
+      start=start.toLowerCase(); target=target.toLowerCase(); if(start===target) return [start];
+      const q=[start]; const seen=new Set([start]); const parent=new Map(); const levels=new Map([[start,0]]);
+      while(q.length){
+        const cur=q.shift(); const d=levels.get(cur)||0; if(d>maxDepth) continue;
+        const neigh=neighborsOf(cur);
+        for(let i=0;i<neigh.length;i++){
+          const nb=neigh[i].toLowerCase(); if(seen.has(nb)) continue; seen.add(nb); parent.set(nb,cur); levels.set(nb,d+1);
+          if(nb===target){ const path=[target]; let x=target; while(parent.has(x)){ x=parent.get(x); path.push(x); } path.reverse(); return path; }
+          if(d+1<=maxDepth) q.push(nb);
+        }
+      }
+      return null;
+    }
+    function planPathIfNeeded(){
+      if(!(STATE.validation==='offline_it' && STATE.strict)) { el.bfsInfo.textContent='BFS inattivo'; el.hintBtn.disabled=true; STATE.bfsPath=null; return; }
+      const path=bfs(STATE.startWord, STATE.targetWord, STATE.maxSteps);
+      if(path && path.length-1<=STATE.maxSteps){ STATE.bfsPath=path; el.bfsInfo.textContent='Percorso: '+(path.length-1)+' passi'; el.hintBtn.disabled=false; setMsg('Livello risolvibile.','ok'); }
+      else { STATE.bfsPath=null; el.bfsInfo.textContent='Nessun percorso entro '+STATE.maxSteps+' passi'; el.hintBtn.disabled=true; setMsg('Cambia parole/difficoltà o disattiva "associazioni note".','err'); }
+    }
+    function giveHint(){
+      if(!STATE.bfsPath || STATE.chain.length>=STATE.maxSteps) return;
+      const idx=STATE.chain.length;
+      const next = STATE.bfsPath[idx+1];
+      if(!next){ setMsg('Ultimo passo: vai a "'+STATE.targetWord+'".','ok'); return; }
+      setMsg('Suggerimento: prova "'+next+'"');
+    }
+
+    // Game start
+    function startGame(){
+      const s=el.startWord.value.trim(); const t=el.targetWord.value.trim(); if(!s||!t||s.toLowerCase()===t.toLowerCase()){ setMsg('Imposta due parole diverse.','err'); return; }
+      STATE.startWord=s; STATE.targetWord=t; STATE.difficulty=el.difficulty.value; STATE.validation=el.validation.value; STATE.strict=!!el.strictAssoc.checked;
+      STATE.maxSteps=DIFFICULTY[STATE.difficulty].maxSteps; STATE.timeLeft=DIFFICULTY[STATE.difficulty].time; STATE.chain=[]; STATE.used=new Set([s.toLowerCase()]); STATE.score=0; STATE.started=true;
+      updateHeaderWords(); resetUI(); updateStatus(); el.input.disabled=false; el.submit.disabled=false; el.input.value=''; el.input.focus(); el.startBtn.disabled=true; LS.saveSettings(); LS.saveLastGame();
+      if(STATE.validation==='offline_it' && STATE.strict){ planPathIfNeeded(); if(!STATE.bfsPath){ el.input.disabled=true; el.submit.disabled=true; el.startBtn.disabled=false; STATE.started=false; return; } }
+      startTimer();
+    }
+
+    // Validation & scoring
+    async function validateTransition(prev, next){
+      if(!next) return {ok:false, reason:'Vuoto'};
+      if(next.toLowerCase()===prev.toLowerCase()) return {ok:false, reason:'Uguale alla precedente'};
+      if(STATE.used.has(next.toLowerCase())) return {ok:false, reason:'Parola già usata'};
+      if(STATE.validation==='permissive') return {ok:true};
+      const nextL = next.toLowerCase(); const prevL = prev.toLowerCase();
+      if(!IT_DICT.has(nextL)) return {ok:false, reason:'Non nel dizionario'};
+      if(STATE.strict){
+        const setA=IT_ASSOC.get(prevL)||new Set(); const setB=IT_ASSOC.get(nextL)||new Set(); const linked=setA.has(nextL)||setB.has(prevL);
+        return {ok:linked, reason: linked? '' : 'Nessuna associazione nota'};
+      }
+      return {ok:true};
+    }
+    function rarityHeuristic(word){ const w=word.toLowerCase(); const weight={q:9,z:8,k:7,j:7,y:6,x:6,w:5,h:4,b:3,f:3,g:3,v:3,c:2,p:2,m:2,d:2,u:2,t:1,r:1,n:1,l:1,o:1,i:1,e:1,a:1,'à':5,'è':5,'é':5,'ì':5,'ò':5,'ù':5}; let sum=0; for(const ch of w) sum+=(weight[ch]||0); return Math.min(100,sum*2); }
+    function rarityOffline(word){ const f=IT_FREQ.get(word.toLowerCase()); if(typeof f==='number') return Math.round((1-Math.max(0,Math.min(1,f)))*100); return rarityHeuristic(word); }
+    function scoreForWord(word){ const base=50; const mult=DIFFICULTY[STATE.difficulty].mult; const rarity=rarityOffline(word); return Math.round((base+rarity)*mult); }
+
+    async function onSubmit(){
+      if(!STATE.started) return; const next=el.input.value.trim(); if(!next) return; const prev = STATE.chain.length? STATE.chain[STATE.chain.length-1] : STATE.startWord;
+      setMsg('Verifica…'); el.submit.disabled=true; const {ok, reason} = await validateTransition(prev, next); el.submit.disabled=false; if(!ok){ setMsg('❌ '+(reason||'Mossa non valida'),'err'); return; }
+      pushChain(next); const delta=scoreForWord(next); STATE.score+=delta; setMsg('✔️ +'+delta+' punti','ok'); updateStatus(); el.input.value=''; el.input.focus();
+      if(STATE.bfsPath){ planPathIfNeeded(); }
+      if(next.toLowerCase()===STATE.targetWord.toLowerCase()){ const timeBonus=Math.max(0, STATE.timeLeft) * Math.round(5*DIFFICULTY[STATE.difficulty].mult); STATE.score+=timeBonus; updateStatus(); endGame('win'); return; }
+      if(STATE.chain.length>=STATE.maxSteps) endGame('steps');
+    }
+
+    // Dict loading
+    el.loadDictBtn.addEventListener('click',()=> el.dictFile.click());
+    el.useSavedBtn.addEventListener('click',()=>{ const s=LS.loadDict(); if(!s){ setMsg('Nessun dizionario salvato.','err'); return; } try{ applyDictJSON(s); setMsg('Dizionario caricato (memoria).','ok'); }catch(e){ setMsg('Errore nel dizionario salvato.','err'); } });
+    el.loadBundledBtn.addEventListener('click', async ()=>{
+      try{
+        const r = await fetch('./italiano_full.json', {cache:'no-store'});
+        const t = await r.text();
+        applyDictJSON(t); LS.saveDict(t, 'italiano_full.json'); setMsg('Pack integrato caricato.','ok');
+      }catch(err){ setMsg('Impossibile caricare il pack integrato.','err'); }
+    });
+    el.dictFile.addEventListener('change', async (e)=>{
+      const file=e.target.files && e.target.files[0] ? e.target.files[0] : null; if(!file) return; const text=await file.text();
+      try{
+        const name=(file.name||'').toLowerCase();
+        if(name.endsWith('.json')){ applyDictJSON(text); LS.saveDict(text, file.name); }
+        else { const normalized = text.split('\r').join('\n'); const lines = normalized.split('\n'); for(let i=0;i<lines.length;i++){ const w=lines[i].trim(); if(w){ IT_DICT.add(w.toLowerCase()); } } refreshDictCounters(); setMsg('📚 Dizionario TXT aggiornato.','ok'); LS.saveDict(JSON.stringify(exportCurrentDict()), file.name.replace(/\.[^/.]+$/,'')+'.json'); }
+      } catch(err){ setMsg('Formato file non valido: '+(err && err.message ? err.message : String(err)),'err'); }
+      finally { e.target.value=''; }
+    });
+
+    function applyDictJSON(jsonStr){
+      const obj = JSON.parse(jsonStr);
+      IT_DICT = new Set(); IT_ASSOC = new Map(); IT_FREQ = new Map();
+      if(Array.isArray(obj.words)) obj.words.forEach(w=> IT_DICT.add(String(w).toLowerCase()));
+      if(obj.assoc && typeof obj.assoc==='object'){ for(const k in obj.assoc){ if(!Object.prototype.hasOwnProperty.call(obj.assoc,k)) continue; const key=String(k).toLowerCase(); const arr=obj.assoc[k]||[]; const set=new Set(); for(let i=0;i<arr.length;i++){ set.add(String(arr[i]).toLowerCase()); } IT_ASSOC.set(key,set); } }
+      if(obj.freq && typeof obj.freq==='object'){ for(const k in obj.freq){ if(!Object.prototype.hasOwnProperty.call(obj.freq,k)) continue; IT_FREQ.set(String(k).toLowerCase(), Number(obj.freq[k])); } }
+      refreshDictCounters();
+      setMsg('📚 Dizionario aggiornato.','ok');
+      el.useSavedBtn.disabled=false;
+    }
+    function exportCurrentDict(){ const words = Array.from(IT_DICT.values()); const assoc = {}; IT_ASSOC.forEach((set,k)=>{ assoc[k]=Array.from(set.values()); }); const freq = {}; IT_FREQ.forEach((v,k)=>{ freq[k]=v; }); return {words, assoc, freq}; }
+    function refreshDictCounters(){ el.dictSize.textContent=String(IT_DICT.size); let countAssoc=0; IT_ASSOC.forEach(v=> countAssoc+=v.size); el.assocSize.textContent=String(countAssoc); }
+
+    // Levels
+    function initLevels(){ el.levelSelect.innerHTML = ''; LEVELS.forEach((lv,i)=>{ const opt=document.createElement('option'); opt.value=String(i); opt.textContent=`${lv.name} • ${lv.diff}`; el.levelSelect.appendChild(opt); }); }
+    function loadLevelIndex(idx){ const lv=LEVELS[idx|0]; if(!lv) return; el.startWord.value=lv.start; el.targetWord.value=lv.target; el.difficulty.value=lv.diff; setMsg(`Livello caricato: ${lv.name}`,'ok'); }
+
+    // PWA
+    function initPWA(){
+      if('serviceWorker' in navigator){
+        navigator.serviceWorker.register('./sw.js').then(()=>{
+          document.getElementById('pwaStatus').textContent = 'Service worker registrato. Installabile su HTTPS.';
+        }).catch(()=>{
+          document.getElementById('pwaStatus').textContent = 'Impossibile registrare il service worker.';
+        });
+      } else {
+        document.getElementById('pwaStatus').textContent = 'Service worker non supportato.';
+      }
+    }
+
+    // Bindings
+    el.startBtn.addEventListener('click', startGame);
+    el.hintBtn.addEventListener('click', giveHint);
+    el.resetBtn.addEventListener('click', ()=>{ STATE.started=false; clearInterval(STATE.timer); resetUI(); el.startBtn.disabled=false; el.input.disabled=true; el.submit.disabled=true; setMsg('Partita resettata.'); });
+    el.submit.addEventListener('click', onSubmit);
+    el.input.addEventListener('keydown', (e)=>{ if(e.key==='Enter') onSubmit(); });
+    el.loadLevelBtn.addEventListener('click', ()=> loadLevelIndex(el.levelSelect.value));
+    el.randomLevelBtn.addEventListener('click', ()=> loadLevelIndex(Math.floor(Math.random()*LEVELS.length)) );
+
+    // Init sequence
+    try{ LS.loadBest(); LS.loadSettings(); LS.loadLastGame(); }catch(e){}
+    document.getElementById('difficulty').value=STATE.difficulty;
+    document.getElementById('validation').value=STATE.validation;
+    document.getElementById('strictAssoc').checked=!!STATE.strict;
+    document.getElementById('best').textContent=String(STATE.best);
+    document.getElementById('useSavedBtn').disabled = !LS.hasDict();
+    if(LS.hasDict()){ try{ applyDictJSON(LS.loadDict()); setMsg('Dizionario salvato caricato automaticamente.','ok'); }catch(e){} }
+    resetUI(); updateHeaderWords(); refreshDictCounters(); STATE.maxSteps=DIFFICULTY[STATE.difficulty].maxSteps; STATE.timeLeft=DIFFICULTY[STATE.difficulty].time; updateStatus();
+    initLevels(); initPWA();
+  </script>
+</body>
+</html>
